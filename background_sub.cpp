@@ -63,7 +63,10 @@ void meanOfHistory(vector<Mat> history, Mat& dst) {
             for ( i = 0; i < history.size(); ++i ) {
                 merging.push_back(history[i].at<uchar>(row, col));
             }
-            double avg = mean(merging)[0];
+            //double avg = mean(merging)[0];
+            size_t n = merging.size() / 2;
+            nth_element(merging.begin(), merging.begin()+n, merging.end());
+            int avg = merging[n];
             dst.at<uchar>(row, col) = avg;
         }
     }
