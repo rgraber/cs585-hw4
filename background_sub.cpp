@@ -65,24 +65,70 @@ string type2str(int type) {
   return r;
 }
 
+void createMatchedMask(string img_file, string template_file, Mat& mask) {
+    // load first image to template match
+    Mat img = imread(img_file, IMREAD_GRAYSCALE);
+    Mat templ = imread(template_file, IMREAD_GRAYSCALE);
+    if ( !img.data || !templ.data ) {
+        cout << "Could not open file " << img_file << " or " <<
+                                          template_file << endl;
+        return;
+    }
+
+    int match_method = CV_TM_SQDIFF_NORMED;
+    int result_cols = img.cols - templ.cols + 1;
+    int result_rows = img.rows - templ.rows + 1;
+
+    Mat result;
+    result.create( result_rows, result_cols, CV_32FC1 );
+    matchTemplate( img, templ, result, match_method );
+    normalize( result, result, 0, 1, NORM_MINMAX, -1, Mat() );
+
+	/// Localizing the best match with minMaxLoc
+	double minVal; double maxVal; Point minLoc; Point maxLoc;
+	Point matchLoc;
+
+	minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, Mat() );
+
+	if( match_method  == CV_TM_SQDIFF ||
+            match_method == CV_TM_SQDIFF_NORMED ){
+		matchLoc = minLoc;
+    } else {
+        matchLoc = maxLoc;
+    }
+
+    mask = Mat::zeros(img.size(), img.type());
+    rectangle( mask, matchLoc,
+            Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ),
+            Scalar::all(255), -1);
+}
+
 int main(int argc, char** argv)
 {
 
 	Ptr<BackgroundSubtractor> pMOG2; //MOG2 Background subtractor
 
-	 pMOG2 = new BackgroundSubtractorMOG2(100,10,false);
-	string dirpath = "/Users/rebeccagraber/Documents/IVC/HW4/eelB/*";
+	pMOG2 = new BackgroundSubtractorMOG2(100,10,false);
+	string dirpath = "data/eels/*";
 	vector<string> img_files = filesInFolder(dirpath);
 	namedWindow("window",WINDOW_AUTOSIZE);
 	namedWindow("final",WINDOW_AUTOSIZE);
 	namedWindow("grey",WINDOW_AUTOSIZE);
 
-
-
 	if ( img_files.size() == 0 ) {
 			cout << "Data files in " << dirpath << " were not found!" <<  endl;
 			return -1;
 	}
+
+    Mat tank_mask;
+    createMatchedMask( img_files[0],
+                       "data/background_template.png", tank_mask);
+    if ( tank_mask.empty() ) {
+        cout << "ERROR: Failed to create tank mask" << endl;
+        return -1;
+    }
+    resize(tank_mask, tank_mask, Size(), 0.5, 0.5, INTER_LANCZOS4);
+
 	Mat orig, smaller, mask_flip, mask_color, mask_convert, grey, thresh1, thresh2;
 	Mat thresh1_color,thresh2_color, thresh1_convert, thresh2_convert, fgMaskMOG2, sElem, eroded, dilated;
 	Mat segmented, old, diff, grey1;
@@ -96,7 +142,8 @@ int main(int argc, char** argv)
 			return -1;
 		}
 
-		resize(orig,smaller, Size(), 0.5, 0.5,INTER_LANCZOS4);
+		resize(orig, orig, Size(), 0.5, 0.5,INTER_LANCZOS4);
+        orig.copyTo(smaller, tank_mask);
 		if(!f)
 		{
 			old = smaller;
