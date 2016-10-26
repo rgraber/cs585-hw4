@@ -282,7 +282,7 @@ int main(int argc, char** argv)
             // **** Segment via motion detection ****
             // get difference between the merged history and current frame
             subtract(mergedhist, grey, output);
-            threshold(output, output, 20, 255, 0);
+            threshold(output, output, 10, 255, 0);
 
             // get difference between the previous and current frame
             motion = (prev - grey) > 15;
