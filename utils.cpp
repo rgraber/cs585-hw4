@@ -2,7 +2,7 @@
 
 //assumes a 10FPS rate, idx 0 == 00:00:00
 string frameNumberToTime(int idx, int fps) {
-    double total_seconds = idx / fps;
+    double total_seconds = (double)idx / (double)fps;
 
     int hours = total_seconds / (60*60);
     total_seconds = total_seconds - (hours * 60*60);

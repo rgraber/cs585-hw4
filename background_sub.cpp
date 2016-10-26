@@ -34,9 +34,19 @@
 using namespace cv;
 using namespace std;
 
-
 int main(int argc, char** argv)
 {
+    // **************************************
+    // Open activity record file for recording data to CSV
+    ofstream analysis_record;
+    analysis_record.open("analysis_record.csv");
+    ofstream activity_record;
+    activity_record.open("activity_record.csv");
+    // ***************************************
+    bool activity_found = false;
+    int last_activity_found = -1;
+    int start_of_activity = -1;
+
 	string dirpath = "data/eels2/*";
 	vector<string> img_files = filesInFolder(dirpath);
 
@@ -44,10 +54,6 @@ int main(int argc, char** argv)
 			cout << "Data files in " << dirpath << " were not found!" <<  endl;
 			return -1;
 	}
-
-    cout << "TOTAL TIME" << endl;
-    cout << frameNumberToTime(img_files.size(), 10) << endl;
-    return -1;
 
     Mat tank_mask;
     createMatchedMask(img_files[0], "data/background_template.png",
@@ -136,14 +142,13 @@ int main(int argc, char** argv)
 
             // flood fill each segment to expand to full body of eel
             ffbuffer = Mat::zeros(sticky.size(), CV_32S);
-            for ( int i = 1; i < nmax; i++) {
-                cout << "Obj_id: " << i << endl;
-                floodFillFromSegment(grey, sticky, i, ffbuffer);
+            for ( int j = 1; j < nmax; j++) {
+                cout << "Obj_id: " << j << endl;
+                floodFillFromSegment(grey, sticky, j, ffbuffer);
             }
 
             ffbuffer.convertTo(ffoutput, CV_8UC1);
             threshold(ffoutput, ffoutput, 1, 255, 0);
-
 
             // ******* COMBINE FLOOD FILL OUTPUT AND STICKY OUTPUT HERE
             // !!! AND uncomment to display the result!
@@ -161,6 +166,16 @@ int main(int argc, char** argv)
             // copy final segmentation to output frame
             buffer = colorized;
             buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
+
+            // *** determine if activity was found ***
+            if ( sum(buffer)[0] > 0 ) {
+                cout << sum(buffer) << endl;
+                last_activity_found = i;
+                if ( !activity_found ) {
+                    start_of_activity = i;
+                    activity_found = true;
+                }
+            }
 
             // show output frame
             imshow("Output", display);
@@ -185,7 +200,36 @@ int main(int argc, char** argv)
             mergeHistory(history, mergedhist);
         }
 
+        // record start/end of activity period if applicable
+        if ( activity_found && ( i - last_activity_found ) > 10 ) {
+            activity_record << frameNumberToTime(start_of_activity);
+            activity_record << " to ";
+            activity_record << frameNumberToTime(last_activity_found);
+            activity_record << "\n";
+
+            activity_found = false;
+        }
+
+        // save activity data to a file
+        analysis_record << to_string(i) << ", ";
+        analysis_record << frameNumberToTime(i);// << ",";
+        analysis_record << "\n";
 	}
+
+    // final write out
+    if ( activity_found ) {
+        activity_record << frameNumberToTime(start_of_activity);
+        activity_record << " to ";
+        activity_record << frameNumberToTime(last_activity_found);
+        activity_record << "\n";
+
+        activity_found = false;
+    }
+
+    // close output file
+    activity_record.close();
+    analysis_record.close();
+
 	waitKey(0);
     return 0;
 }
