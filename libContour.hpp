@@ -1,10 +1,3 @@
-/*
- * libContour.hpp
- * Authors: Danny Cooper, Rebecca Graber, Megan Van Welie
- * Purpose: Header for libContour library
- */
-
-
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -17,3 +10,4 @@
 #include <algorithm>
 void myFindContours(cv::Mat&, cv::Mat&);
 void colorize(cv::Mat&, cv::Mat&);
+void make_sticky(cv::Mat&,cv::Mat&,cv::Mat&);

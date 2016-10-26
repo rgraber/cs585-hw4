@@ -18,6 +18,64 @@ using namespace cv;
 using namespace std;
 
 // Function header
+
+void colorize(Mat& in, Mat& out)
+{
+	double mymin,mymax;
+	minMaxLoc(in,&mymin,&mymax,0,0,noArray());
+	vector<Mat> colors;
+	colors.push_back(Mat::zeros(in.rows,in.cols,CV_8U));
+	colors.push_back(Mat::zeros(in.rows,in.cols,CV_8U));
+	colors.push_back(Mat::zeros(in.rows,in.cols,CV_8U));
+	for(int i=1;i<int(mymax);i++)
+	{
+		uchar r,g,b;
+
+		b= ((1+i)*37221) %255;
+		g= ((1+i)*9157) %255;
+		r= ((1+i)*127993) %255;
+		colors[0].setTo((b),in==i);
+		colors[1].setTo((g),in==i);
+		colors[2].setTo((r),in==i);
+		//		printf("%d:%d,%d,%d\n",i,b,g,r);
+	}
+	merge(colors,out);
+	//	cout <<"aaa" <<out.type() << '\n';
+}
+
+
+bool eq_label(Vec3i a, Vec3i b)
+{
+	return (a[1]==b[1]) && a[1] > 0;
+}
+bool eq_point(Vec3i a, Vec3i b)
+{
+	return (a[0]==b[0]);
+}
+bool is_labeled(Vec3i a)
+{
+	return a[1] != 0;
+}
+void add_equality(vector<vector <int> >& list,Vec3i a,Vec3i b)
+{
+	if ((a[1] != 0) && (b[1] !=0))
+	{
+		vector <int> v;
+		v.push_back(a[1]);
+		v.push_back(b[1]);
+		list.push_back(v);
+	}
+	else
+	{
+		cout << "This shouldn't happen! Tried to set a label equality between label and no label\n";
+	}
+	return;
+}
+void copy_label(Vec3i& src, Vec3i& dst)
+{
+	dst[1]=src[1];
+	return;
+}
 class State
 {
 	public:
@@ -26,41 +84,6 @@ class State
 		double area;
 		Mat pixels;
 };
-vector<tuple<State,State> > get_state_matches(vector<State> s1_list,vector<State> s2_list, double (*distance_fn)(State&,State&),double distance_thresh)
-{
-	vector<tuple<double,int,int> > distances;
-	for (int i=0;i<s1_list.size();i++)
-	{
-		State& s1 = s1_list[i];
-		for (int j=0;j<s2_list.size();j++)
-		{
-			State& s2 = s2_list[j];
-			distances.push_back(make_tuple(distance_fn(s1,s2),i,j));
-		}
-	}
-	vector<int> s1_matched = vector<int>(s1_list.size(),-1);
-	vector<int> s2_matched = vector<int>(s2_list.size(),-1);
-	sort(distances.begin(),distances.end());
-	vector<tuple<State,State> > returnme;
-	for (int i=0;i<distances.size();i++)
-	{
-		tuple<double,int,int> t = distances[i];
-		double distance = get<0>(t);
-		int idx_1 = get<1>(t);
-		int idx_2 = get<2>(t);
-		cout << distance << ',' << idx_1 << ',' << idx_2 << '\n';
-		if ((s1_matched[idx_1] < 0 || s2_matched[idx_2] < 0 )&& distance < distance_thresh)
-		//if ( 1 || distance < 1.0)
-		{
-			s1_matched[idx_1]=1;
-			s2_matched[idx_2]=1;
-			returnme.push_back(make_tuple(s1_list[idx_1],s2_list[idx_2]));
-		}
-	}
-	return returnme;
-}
-
-
 vector<State> populate_states(Mat& frame)
 {
 	double mymin,mymax;
@@ -92,8 +115,6 @@ vector<State> populate_states(Mat& frame)
 	return states;
 
 }
-
-
 double df(State& s1, State& s2)
 {
 
@@ -130,6 +151,137 @@ double df(State& s1, State& s2)
 
 
 
+}
+vector<tuple<State,State> > get_state_matches(vector<State> s1_list,vector<State> s2_list, double (*distance_fn)(State&,State&))
+{
+	vector<tuple<double,int,int> > distances;
+	for (int i=0;i<s1_list.size();i++)
+	{
+		State& s1 = s1_list[i];
+		for (int j=0;j<s2_list.size();j++)
+		{
+			State& s2 = s2_list[j];
+			distances.push_back(make_tuple(distance_fn(s1,s2),i,j));
+		}
+	}
+	vector<int> s1_matched = vector<int>(s1_list.size(),-1);
+	vector<int> s2_matched = vector<int>(s2_list.size(),-1);
+	sort(distances.begin(),distances.end());
+	vector<tuple<State,State> > returnme;
+	for (int i=0;i<distances.size();i++)
+	{
+		tuple<double,int,int> t = distances[i];
+		double distance = get<0>(t);
+		int idx_1 = get<1>(t);
+		int idx_2 = get<2>(t);
+		cout << distance << ',' << idx_1 << ',' << idx_2 << '\n';
+		if ((s1_matched[idx_1] < 0 || s2_matched[idx_2] < 0 )&& distance < 25.0)
+		//if ( 1 || distance < 1.0)
+		{
+			s1_matched[idx_1]=1;
+			s2_matched[idx_2]=1;
+			returnme.push_back(make_tuple(s1_list[idx_1],s2_list[idx_2]));
+		}
+	}
+	return returnme;
+}
+void make_sticky(Mat& prev,Mat& curr,Mat& out)
+{
+	Mat mask = (prev >0) & (curr > 0);
+	SparseMat combo = SparseMat(mask);
+	vector<State> states_prev = populate_states(prev);		   vector<State> states_curr = populate_states(curr);
+	vector<tuple<State,State> > corrs = get_state_matches(states_prev,states_curr,&df);
+	//out = Mat::zeros(curr.rows,curr.cols,CV_8UC3);
+	//curr.copyTo(out);
+	
+	
+	double myminc,mymaxc;
+	double myminp,mymaxp;
+	minMaxLoc(curr,&myminc,&mymaxc,0,0,noArray());
+	minMaxLoc(curr,&myminp,&mymaxp,0,0,noArray());
+	int realmax;
+	if (int(mymaxp) > int(mymaxc))
+	{
+		realmax = int(mymaxp);
+	}
+	else
+	{
+		realmax = int(mymaxc);
+	}
+
+	vector<int> seen = vector<int>(realmax,-1); //Maps values in prev frame onto current frame values
+	
+	// Handles direct correspondences
+	Mat outd;
+	out.copyTo(outd);
+	for (int i=corrs.size()-1;i>=0;i--)
+	{
+		State prev_s,curr_s;
+		prev_s = get<0>(corrs[i]);
+		curr_s = get<1>(corrs[i]);
+
+
+		int p = prev_s.object_id;
+		int v = curr_s.object_id;
+		if (seen[p] != -1 && seen[p] !=v)
+		{
+			out.setTo(v,curr==v);		
+			line(outd,prev_s.centroid,curr_s.centroid,Scalar(v),2);
+			continue;
+		}
+		seen[p] = v;
+
+		Mat innermask = curr==v;
+		out.setTo(p,innermask);
+		line(outd,prev_s.centroid,curr_s.centroid,Scalar(p),2);
+		//circle(out,prev_s.centroid,3,Scalar((oid*127)%255,(oid*43)%255,(oid*87)%255),-1);
+		//circle(out,curr_s.centroid,3,Scalar((oid*127)%255,(oid*43)%255,(oid*87)%255),-1);
+	//	out.setTo(prev_s.object_id,curr==curr_s.object_id);
+
+	}
+	SparseMat leftover = SparseMat((curr >0) - (out > 0));
+	Mat _outd;
+	colorize(outd,_outd);
+	imshow("Debug", (curr >0) - (out > 0) );
+	imshow("Debug2", _outd);
+	for(auto it = leftover.begin<uchar>(); it != leftover.end<uchar>(); ++it)
+	{
+
+		int x=it.node()->idx[0];
+		int y=it.node()->idx[1];
+		int v = curr.at<int>(x,y);
+		out.setTo(v+realmax,curr==v);
+	}
+	
+	return;
+/*
+	for(auto it = combo.begin<uchar>(); it != combo.end<uchar>(); ++it)
+	{
+		int x=it.node()->idx[0];
+		int y=it.node()->idx[1];
+
+		int p = prev.at<int>(x,y);
+		int v = curr.at<int>(x,y);
+		if (seen[p] != -1 && seen[p] !=v)
+		{
+			out.setTo(v,curr==v);			
+			continue;
+		}
+		seen[p] = v;
+
+		Mat innermask = curr==v;
+		out.setTo(p,innermask);
+	}
+	SparseMat leftover = SparseMat((curr >0) - (out > 0));
+	for(auto it = leftover.begin<uchar>(); it != leftover.end<uchar>(); ++it)
+	{
+
+		int x=it.node()->idx[0];
+		int y=it.node()->idx[1];
+		int v = curr.at<int>(x,y);
+		out.setTo(v+realmax,curr==v);
+	}
+*/
 }
 bool mergenew(vector <vector <int> >& input, vector <vector <int> >& output , int maxcnt)
 {
@@ -193,201 +345,6 @@ bool mergenew(vector <vector <int> >& input, vector <vector <int> >& output , in
 
 
 	output=cells;
-}
-
-
-void consolidate_nearby(Mat& in, Mat& out)
-{
-	vector<State> states = populate_states(in);
-	vector<tuple<State,State> > corrs = get_state_matches(states,states,&df,25.0);
-	State a_s, b_s;
-	vector<vector<int> > combineme, equivs;
-	
-	double mymin,mymax;
-	minMaxLoc(in,&mymin,&mymax,0,0,noArray());
-
-
-	for (int i=0; i<corrs.size(); i++)
-	{	
-		vector<int> v;
-		a_s = get<0>(corrs[i]);
-		b_s = get<1>(corrs[i]);
-		
-		int a = a_s.object_id;
-		int b = b_s.object_id;
-		v.push_back(a);		
-		v.push_back(b);
-		combineme.push_back(v);	
-	}
-	mergenew(combineme,equivs,(int)mymax);
-	for (int i=0;i<equivs.size();i++)
-	{
-		for (int j = 0;j<equivs[i].size();j++)
-		{
-			out.setTo((1+i),in==equivs[i][j]);
-		}
-	}
-
-}
-
-
-void colorize(Mat& in, Mat& out)
-{
-	double mymin,mymax;
-	minMaxLoc(in,&mymin,&mymax,0,0,noArray());
-	vector<Mat> colors;
-	colors.push_back(Mat::zeros(in.rows,in.cols,CV_8U));
-	colors.push_back(Mat::zeros(in.rows,in.cols,CV_8U));
-	colors.push_back(Mat::zeros(in.rows,in.cols,CV_8U));
-	for(int i=1;i<int(mymax);i++)
-	{
-		uchar r,g,b;
-
-		b= ((1+i)*37221) %255;
-		g= ((1+i)*9157) %255;
-		r= ((1+i)*127993) %255;
-		colors[0].setTo((b),in==i);
-		colors[1].setTo((g),in==i);
-		colors[2].setTo((r),in==i);
-		//		printf("%d:%d,%d,%d\n",i,b,g,r);
-	}
-	merge(colors,out);
-	//	cout <<"aaa" <<out.type() << '\n';
-}
-
-
-bool eq_label(Vec3i a, Vec3i b)
-{
-	return (a[1]==b[1]) && a[1] > 0;
-}
-bool eq_point(Vec3i a, Vec3i b)
-{
-	return (a[0]==b[0]);
-}
-bool is_labeled(Vec3i a)
-{
-	return a[1] != 0;
-}
-void add_equality(vector<vector <int> >& list,Vec3i a,Vec3i b)
-{
-	if ((a[1] != 0) && (b[1] !=0))
-	{
-		vector <int> v;
-		v.push_back(a[1]);
-		v.push_back(b[1]);
-		list.push_back(v);
-	}
-	else
-	{
-		cout << "This shouldn't happen! Tried to set a label equality between label and no label\n";
-	}
-	return;
-}
-void copy_label(Vec3i& src, Vec3i& dst)
-{
-	dst[1]=src[1];
-	return;
-}
-void make_sticky(Mat& prev,Mat& curr,Mat& out)
-{
-	Mat mask = (prev >0) & (curr > 0);
-	SparseMat combo = SparseMat(mask);
-	vector<State> states_prev = populate_states(prev);		   
-	vector<State> states_curr = populate_states(curr);
-	vector<tuple<State,State> > corrs = get_state_matches(states_prev,states_curr,&df,25);
-	out = Mat::zeros(curr.rows,curr.cols,CV_32S);
-	//curr.copyTo(out);
-	
-	
-	double myminc,mymaxc;
-	double myminp,mymaxp;
-	minMaxLoc(curr,&myminc,&mymaxc,0,0,noArray());
-	minMaxLoc(curr,&myminp,&mymaxp,0,0,noArray());
-	int realmax;
-	if (int(mymaxp) > int(mymaxc))
-	{
-		realmax = int(mymaxp);
-	}
-	else
-	{
-		realmax = int(mymaxc);
-	}
-
-	vector<int> seen = vector<int>(realmax,-1); //Maps values in prev frame onto current frame values
-	
-	// Handles direct correspondences
-	Mat outd;
-	out.copyTo(outd);
-	for (int i=corrs.size()-1;i>=0;i--)
-	{
-		State prev_s,curr_s;
-		prev_s = get<0>(corrs[i]);
-		curr_s = get<1>(corrs[i]);
-
-
-		int p = prev_s.object_id;
-		int v = curr_s.object_id;
-		if (seen[p] != -1 && seen[p] !=v)
-		{
-			out.setTo(v,curr==v);		
-			//line(outd,prev_s.centroid,curr_s.centroid,Scalar(v),2);
-			continue;
-		}
-		seen[p] = v;
-
-		Mat innermask = curr==v;
-		out.setTo(p,innermask);
-		//line(outd,prev_s.centroid,curr_s.centroid,Scalar(p),2);
-		//circle(out,prev_s.centroid,3,Scalar((oid*127)%255,(oid*43)%255,(oid*87)%255),-1);
-		//circle(out,curr_s.centroid,3,Scalar((oid*127)%255,(oid*43)%255,(oid*87)%255),-1);
-	//	out.setTo(prev_s.object_id,curr==curr_s.object_id);
-
-	}
-	SparseMat leftover = SparseMat((curr >0) - (out > 0));
-//	Mat _outd;
-//	colorize(outd,_outd);
-//	imshow("Debug", (curr >0) - (out > 0) );
-//	imshow("Debug2", _outd);
-	for(auto it = leftover.begin<uchar>(); it != leftover.end<uchar>(); ++it)
-	{
-
-		int x=it.node()->idx[0];
-		int y=it.node()->idx[1];
-		int v = curr.at<int>(x,y);
-		out.setTo(v+realmax,curr==v);
-	}
-	Mat _out = Mat::zeros(out.size(),CV_32S);
-	consolidate_nearby(out,_out);	
-	out=_out;
-	return;
-/*
-	for(auto it = combo.begin<uchar>(); it != combo.end<uchar>(); ++it)
-	{
-		int x=it.node()->idx[0];
-		int y=it.node()->idx[1];
-
-		int p = prev.at<int>(x,y);
-		int v = curr.at<int>(x,y);
-		if (seen[p] != -1 && seen[p] !=v)
-		{
-			out.setTo(v,curr==v);			
-			continue;
-		}
-		seen[p] = v;
-
-		Mat innermask = curr==v;
-		out.setTo(p,innermask);
-	}
-	SparseMat leftover = SparseMat((curr >0) - (out > 0));
-	for(auto it = leftover.begin<uchar>(); it != leftover.end<uchar>(); ++it)
-	{
-
-		int x=it.node()->idx[0];
-		int y=it.node()->idx[1];
-		int v = curr.at<int>(x,y);
-		out.setTo(v+realmax,curr==v);
-	}
-*/
 }
 
 bool mergecells(vector<unordered_set <int> >& input)

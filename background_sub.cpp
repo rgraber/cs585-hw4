@@ -26,119 +26,10 @@
 #include <vector>
 #include <map>
 #include <glob.h>
-#include"libContour.hpp"
-//#include "segmentation.hpp"
-#include "boundary.hpp"
 
+#include "libContour.hpp"
 using namespace cv;
 using namespace std;
-
-void floodFillInner(Mat& grey, Mat& result, int obj_id, Point p, int nmean, int dev, Mat& segmented, int count)
-{
-
-	cout << "Testing " << p.x << "," << p.y << endl;
-	cout << "object id " << obj_id << endl;
-	int s = segmented.at<int>(p.y,p.x);
-	cout << "segment value at point " << s << endl;
-	count++;
-
-	if(p.y > grey.rows || p.x > grey.cols)
-	{
-		cout << "out of bounds: " << grey.rows << "," << grey.cols << endl;
-		return;
-	}
-	if(result.at<int>(p.y,p.x) == obj_id)
-	{
-//		cout << "Already marked" << endl;
-		return;
-	}
-	int val = (int)grey.at<uchar>(p.y,p.x);
-	cout << "Grey val: " << val << endl;
-//	cout << "Seg val: " << segmented.at<int>(p.y,p.x) << endl;
-	if (((val < nmean + 1) && (val > nmean - 1)) || segmented.at<int>(p.y,p.x) == obj_id)
-	{
-		result.at<int>(p.y,p.x) = obj_id;
-		Point p0 = Point(p.x+1,p.y);
-		Point p1 = Point(p.x, p.y+1);
-		Point p2 = Point(p.x, p.y-1);
-		Point p3 = Point(p.x-1, p.y);
-		floodFillInner(grey,result,obj_id,p0,nmean,dev,segmented,count);
-		floodFillInner(grey,result,obj_id,p1,nmean,dev,segmented,count);
-		floodFillInner(grey,result,obj_id,p2,nmean,dev,segmented,count);
-		floodFillInner(grey,result,obj_id,p3,nmean,dev,segmented,count);
-	}
-
-}
-
-
-//orig is grey here
-void floodFillFromSegment(Mat &grey, Mat &segments, int obj_id, Mat &result)
-{
-	//find point on object
-	Point p;
-	bool found = false;
-	int sum=0;
-	int count=0;
-
-	//get mean brightness of segmented object
-	Mat mask = Mat::zeros(grey.rows, grey.cols, CV_8U);
-	for(int i=0; i < grey.rows; i++)
-	{
-		for(int j=0; j< grey.cols; j++)
-		{
-			if(segments.at<int>(i,j) == obj_id)
-			{
-				sum+=(int)(grey.at<uchar>(i,j));
-				count++;
-			}
-		}
-	}
-
-	int nmean = sum/count;
-	int dev = 0;
-	//get standard dev, in stupid way
-	for(int i=0; i < grey.rows; i++)
-		{
-			for(int j=0; j< grey.cols; j++)
-			{
-				if(segments.at<int>(i,j) == obj_id)
-				{
-					uchar v = grey.at<uchar>(i,j);
-					int nv = (int)v;
-					dev+=(nv - nmean)*(nv - nmean);
-				}
-			}
-		}
-	dev = sqrt(dev/count);
-	cout << "Mean: " << nmean << endl;
-	cout << "Std dev: " << dev << endl;
-
-	for(int i=0; i < segments.rows; i++)
-	{
-		for(int j=0; j < segments.cols; j++)
-		{
-			if (segments.at<int>(i,j) == obj_id)
-			{
-
-				p = Point(j,i);
-				found = true;
-				break;
-			}
-			if(found) break;
-		}
-	}
-	if(!found) return;
-	else
-	{
-	cout << "Starting at point " << p.x << "," << p.y << endl;
-	cout << "At start " << segments.at<int>(p.y,p.x) << endl;
-	if(count > 30)
-	{
-	floodFillInner(grey, result, obj_id, p, nmean, dev, segments,0);
-	}
-	}
-}
-
 
 Rect rectFromMask(Mat& mask) {
     int l = -1;
@@ -161,18 +52,6 @@ Rect rectFromMask(Mat& mask) {
     Rect roi(l, t, w, h);
     return roi;
 }
-
-void addLastHistoricalItems(vector<Mat> dhistory, Mat& dst, int back)
-{
-	int maxm = back;
-
-	if(back > dhistory.size()) maxm = dhistory.size();
-	for(int h = 1; h < maxm; h++)
-	{
-		dst+= dhistory[dhistory.size() - h];
-	}
-}
-
 
 void meanOfHistory(vector<Mat> history, Mat& dst) {
     int rows = history[0].rows;
@@ -273,7 +152,7 @@ int main(int argc, char** argv)
 	Ptr<BackgroundSubtractor> pMOG2; //MOG2 Background subtractor
 
 	pMOG2 = new BackgroundSubtractorMOG2(100,10,false);
-	string dirpath = "/Users/rebeccagraber/Documents/IVC/HW4/eelB/*";
+	string dirpath = "/home/danny/media/eels/*";
 	vector<string> img_files = filesInFolder(dirpath);
 
 	if ( img_files.size() == 0 ) {
@@ -283,7 +162,7 @@ int main(int argc, char** argv)
 
     Mat tank_mask;
     createMatchedMask( img_files[0],
-                       "/Users/rebeccagraber/Documents/IVC/HW4/background_template.png", tank_mask);
+                       "./data/background_template.png", tank_mask);
     if ( tank_mask.empty() ) {
         cout << "ERROR: Failed to create tank mask" << endl;
         return -1;
@@ -292,13 +171,12 @@ int main(int argc, char** argv)
     Rect tank = rectFromMask(tank_mask);
 
     Mat eroded, dilated;
-    Mat sElem = getStructuringElement(MORPH_RECT,Size(3,3),Point(0,0));
+    Mat sElem = getStructuringElement(MORPH_RECT,Size(5,5),Point(0,0));
 
     vector<Mat> history;
-    vector<Mat> displayHistory;
-    Mat orig, grey, prev, output, greyOut, outOut;
+    Mat orig, grey,_grey, prev,realprev, output, greyOut, outOut,motion,colorized,segmented,sticky_prev,sticky;
     Mat buffer;
-    Mat display, displayWithHistory;
+    Mat display;
 
 	for ( int i = 0; i < img_files.size(); ++i ) {
 		orig = imread(img_files[i],CV_LOAD_IMAGE_COLOR);
@@ -315,7 +193,8 @@ int main(int argc, char** argv)
 
         // create grayscale image
 		cvtColor(orig, grey, CV_BGR2GRAY);
-
+		blur(grey,_grey,Size(3,3));
+		grey=_grey;
         /*
 		Scalar a = mean(grey1);
 		grey = grey1 - a;
@@ -349,11 +228,14 @@ int main(int argc, char** argv)
         if ( !prev.empty() ) {
             // motion detect by subtracting previous image
             // (may be more than 1 step back)
-            subtract(prev, grey, output);
+		subtract(prev, grey, output);
             threshold(output, output, 20, 255, 0);
 
             display = Mat(tank.height*2, tank.width, orig.type());
-
+	    motion = (realprev - grey) > 15;
+            dilate(motion,dilated,sElem);
+	    erode(dilated,eroded,sElem);
+	    motion = eroded;
             /*
             buffer = orig(tank);
             buffer.copyTo(display(Rect(0, 0, buffer.cols, buffer.rows)));
@@ -361,47 +243,41 @@ int main(int argc, char** argv)
 
             cvtColor(grey(tank), buffer, CV_GRAY2BGR);
             buffer.copyTo(display(Rect(0, 0, buffer.cols, buffer.rows)));
+	    Mat known_still,known_still_prev;
+	    known_still = Mat::zeros(grey(tank).size(), CV_8U);
 
-            cvtColor(output(tank), buffer, CV_GRAY2BGR);
+	    if ( !sticky_prev.empty() )
+	    {
+		    realprev(tank).copyTo(known_still_prev,(sticky_prev > 1));
+		    grey(tank).copyTo(known_still,(sticky_prev > 1));
+		    known_still = ((known_still - known_still_prev) > 5);
+	    }
+		imshow("dbg",known_still);
+	    cout << output(tank).type() << ',' << motion(tank).type() << ',' << known_still.type() << '\n';
+	    Mat tmp = output(tank)+motion(tank)+known_still;
+	    myFindContours(tmp, segmented);
+	    if ( !sticky_prev.empty() )
+	    {
+
+	    make_sticky(sticky_prev,segmented, sticky);
+	    }
+	    else
+	    {
+		    sticky=segmented;
+	    }
+	    sticky_prev = sticky;
+	    colorize(sticky,colorized);
+	    buffer=colorized;
+//            cvtColor((colorized), buffer, CV_GRAY2BGR);
             buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
-
-            displayHistory.push_back(output(tank).clone());
-
+	
             imshow("Output", display);
-
-            //flood filling
-            Mat grey_cropped = grey(tank);
-            Mat output_cropped = output(tank);
-
-            Mat segmented_init;
-            myFindContours(output_cropped, segmented_init);
-
-            double min, max;
-            minMaxLoc(segmented_init, &min, &max);
-            int nmax = (int) max;
-            Mat buffer = Mat::zeros(segmented_init.rows, segmented_init.cols, CV_32S);
-            for(int i = 1; i <= nmax; i++)
-            {
-            	cout << "Obj_id: " << i << endl;
-            	floodFillFromSegment(grey_cropped,  segmented_init, i, buffer);
-            }
-
-            Mat buffer_u;
-            buffer.convertTo(buffer_u, CV_8UC1);
-            Mat dst;
-            threshold(buffer_u, dst,0, 255, 0);
-
-            imshow("buffer",dst);
-
-
-
 
             if (waitKey(30) == 27) {
                 break;
             }
         }
-
-
+    realprev = grey.clone();
 
         history.push_back(grey.clone());
         if ( history.size() > 10 ) {
