@@ -1,3 +1,4 @@
+
 /*
  * background_sub.cpp
  *
@@ -39,7 +40,7 @@ Point getLowestPoint(Vector<Point> in)
 	bool first;
 	for(int i=0; i < in.size(); i++)
 	{
-		cout << "P: " << in[i].x << "," << in[i].y;
+//		cout << "P: " << in[i].x << "," << in[i].y;
 		if (first || in[i].y > p.y )
 		{
 			p = in[i];
@@ -55,7 +56,7 @@ Point getLeftMostPoint(Vector<Point> in)
 		bool first;
 		for(int i=0; i < in.size(); i++)
 		{
-			cout << "P: " << in[i].x << "," << in[i].y;
+//			cout << "P: " << in[i].x << "," << in[i].y;
 			if (first || in[i].x < p.x )
 			{
 				p = in[i];
@@ -72,7 +73,7 @@ Point getHighestPoint(Vector<Point> in)
 	bool first;
 	for(int i=0; i < in.size(); i++)
 	{
-		cout << "P: " << in[i].x << "," << in[i].y;
+//		cout << "P: " << in[i].x << "," << in[i].y;
 		if (first || in[i].y < p.y )
 		{
 			p = in[i];
@@ -88,7 +89,7 @@ Point getRightMostPoint(Vector<Point> in)
 		bool first;
 		for(int i=0; i < in.size(); i++)
 		{
-			cout << "P: " << in[i].x << "," << in[i].y;
+//			cout << "P: " << in[i].x << "," << in[i].y;
 			if (first || in[i].x > p.x )
 			{
 				p = in[i];
@@ -330,17 +331,24 @@ int main(int argc, char** argv)
                 cout << "Obj_id: " << i << endl;
                 floodFillFromSegment(grey, sticky, i, ffbuffer);
             }
-
             ffbuffer.convertTo(ffoutput, CV_8UC1);
             threshold(ffoutput, ffoutput, 1, 255, 0);*/
 
 
             //***** HEAD AND TAIL ******//
             Mat eel_points = Mat::zeros(colorized.rows, colorized.cols, CV_8UC3);
+            Mat skeleton, skeleton_conv;
+            skeleton = Mat::zeros(sticky.rows, sticky.cols, CV_8U);
+
             for(int i=1; i< nmax; i++)
             {
             	cout << i << endl;
-            	vector<Point> skel = skeletonToContour(sticky,i);
+    //        	cout << type2str(sticky.type()) << endl;
+
+            	vector<Point> skel;
+            	skel = skeletonize(sticky,skeleton,i);
+            	cout << "skel " << skel.size() << endl;
+
 
             	vector<Point> eel;
             	Point cent = centroid(skel);
@@ -381,18 +389,21 @@ int main(int argc, char** argv)
             		    tail = getRightMostPoint(skel);
             		  }
             	 }
-            	 cout << "Found head and tail" << endl;
+         //   	 cout << "Found head and tail" << endl;
             	 eel.push_back(cent);
             	 eel.push_back(head);
             	 eel.push_back(tail);
             	 eels[i] = eel;
-            	 cout << "Added to map" << endl;
+         //   	 cout << "Added to map" << endl;
             	 cout << "Head " << head.x << "," << head.y << endl;
             	 eel_points.at<Vec3b>(head.y,head.x) = Vec3b(0,0,255);
-            	 cout << "Going once" << endl;
+            	 cout << "Centroid " << cent.x << "," << cent.y << endl;
             	 eel_points.at<Vec3b>(tail.y,tail.x) = Vec3b(0,255,0);
             	 eel_points.at<Vec3b>(cent.y,cent.x) = Vec3b(255,0,0);
-            	 cout << "End of eel loop" << endl;
+            	 circle(eel_points, tail, 10, Scalar(0,255,0));
+            	 circle(eel_points, head, 10, Scalar(0,0,255));
+            	 circle(eel_points, cent, 10, Scalar(255,0,0));
+cout << "eel_points" << endl;
 
             }
 
@@ -403,7 +414,6 @@ int main(int argc, char** argv)
 
 /*
             myFindContours(ffoutput,flooded_contours);
-
             if (!flooded_sticky_prev.empty() ) {
                    make_sticky(flooded_sticky_prev, flooded_contours, flooded_sticky);
                 }
@@ -423,10 +433,11 @@ int main(int argc, char** argv)
 
             // copy original grey image to output frame
             cvtColor(grey, buffer, CV_GRAY2BGR);
+            cvtColor(skeleton,skeleton_conv,CV_GRAY2BGR);
             buffer.copyTo(display(Rect(0, 0, buffer.cols, buffer.rows)));
 
             // copy final segmentation to output frame
-            buffer = colorized + eel_points;
+            buffer = colorized + eel_points + skeleton_conv;
 
             buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
 
