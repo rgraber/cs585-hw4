@@ -29,8 +29,75 @@
 
 #include "libContour.hpp"
 #include "floodfill.hpp"
+#include "segmentation.hpp"
 using namespace cv;
 using namespace std;
+
+Point getLowestPoint(Vector<Point> in)
+{
+	Point p = Point(0,0);
+	bool first;
+	for(int i=0; i < in.size(); i++)
+	{
+		cout << "P: " << in[i].x << "," << in[i].y;
+		if (first || in[i].y > p.y )
+		{
+			p = in[i];
+			first = false;
+		}
+	}
+	return p;
+}
+
+Point getLeftMostPoint(Vector<Point> in)
+{
+	Point p = Point(0,0);
+		bool first;
+		for(int i=0; i < in.size(); i++)
+		{
+			cout << "P: " << in[i].x << "," << in[i].y;
+			if (first || in[i].x < p.x )
+			{
+				p = in[i];
+				first = false;
+			}
+		}
+		return p;
+}
+
+
+Point getHighestPoint(Vector<Point> in)
+{
+	Point p = Point(0,0);
+	bool first;
+	for(int i=0; i < in.size(); i++)
+	{
+		cout << "P: " << in[i].x << "," << in[i].y;
+		if (first || in[i].y < p.y )
+		{
+			p = in[i];
+			first = false;
+		}
+	}
+	return p;
+}
+
+Point getRightMostPoint(Vector<Point> in)
+{
+	Point p = Point(0,0);
+		bool first;
+		for(int i=0; i < in.size(); i++)
+		{
+			cout << "P: " << in[i].x << "," << in[i].y;
+			if (first || in[i].x > p.x )
+			{
+				p = in[i];
+				first = false;
+			}
+		}
+		return p;
+}
+
 
 Rect rectFromMask(Mat& mask) {
     int l = -1;
@@ -161,7 +228,7 @@ int main(int argc, char** argv)
 	Ptr<BackgroundSubtractor> pMOG2; //MOG2 Background subtractor
 
 	pMOG2 = new BackgroundSubtractorMOG2(100,10,false);
-	string dirpath = "../../hw4/data/eels2/*";
+	string dirpath = "/Users/rebeccagraber/Documents/IVC/HW4/eelB/*";
 	vector<string> img_files = filesInFolder(dirpath);
 
 	if ( img_files.size() == 0 ) {
@@ -170,7 +237,7 @@ int main(int argc, char** argv)
 	}
 
     Mat tank_mask;
-    createMatchedMask(img_files[0], "../../hw4/data/background_template.png",
+    createMatchedMask(img_files[0], "/Users/rebeccagraber/Documents/IVC/HW4/data/background_template.png",
                         tank_mask);
     if ( tank_mask.empty() ) {
         cout << "ERROR: Failed to create tank mask" << endl;
@@ -184,7 +251,10 @@ int main(int argc, char** argv)
     Mat orig, grey, mergedhist, prev; // orig and helper images
     Mat ffbuffer, ffoutput;
     Mat output, motion, colorized, segmented, sticky_prev, sticky; // results
+    Mat flooded_colorized, flooded_contours, flooded_sticky, flooded_sticky_prev; // results with flooding
     Mat display; // final output that is displayed
+
+    map<int, vector<Point> > eels;
 
     // morphology operator used in an attempt to remove noise in segmentations
     Mat eroded, dilated;
@@ -254,7 +324,7 @@ int main(int argc, char** argv)
             minMaxLoc(sticky, &min, &max);
             int nmax = (int) max;
 
-            // flood fill each segment to expand to full body of eel
+        /*    // flood fill each segment to expand to full body of eel
             ffbuffer = Mat::zeros(sticky.size(), CV_32S);
             for ( int i = 1; i < nmax; i++) {
                 cout << "Obj_id: " << i << endl;
@@ -262,11 +332,88 @@ int main(int argc, char** argv)
             }
 
             ffbuffer.convertTo(ffoutput, CV_8UC1);
-            threshold(ffoutput, ffoutput, 1, 255, 0);
+            threshold(ffoutput, ffoutput, 1, 255, 0);*/
+
+
+            //***** HEAD AND TAIL ******//
+            Mat eel_points = Mat::zeros(colorized.rows, colorized.cols, CV_8UC3);
+            for(int i=1; i< nmax; i++)
+            {
+            	cout << i << endl;
+            	vector<Point> skel = skeletonToContour(sticky,i);
+
+            	vector<Point> eel;
+            	Point cent = centroid(skel);
+            	cout << "Found centroid " << endl;
+            	Point old_cent = cent;
+            	Point head;
+            	Point tail;
+            	if(eels.count(i) != 0)
+            	{
+            		old_cent = eels[i][0];
+            	}
+
+            	double theta = orientation(skel);
+            	cout << "Found orientation " << endl;
+            	 if (theta < 2.35 && theta > 0.785 ) {
+            		 //vertical
+            		 if(old_cent.y < cent.y) //moving downwards
+            		 {
+            			 head = getLowestPoint(skel);
+            			 tail = getHighestPoint(skel);
+            		 }
+            		 else //moving upwards
+            		 {
+            			 head = getHighestPoint(skel);
+            			 tail = getLowestPoint(skel);
+            		 }
+            	 }
+            	 else //horizontal
+            	 {
+            		 if(old_cent.x < cent.x) //moving right
+            		 {
+            		    head = getRightMostPoint(skel);
+            		    tail = getLeftMostPoint(skel);
+            		  }
+            		  else //moving upwards
+            		  {
+            		    head = getLeftMostPoint(skel);
+            		    tail = getRightMostPoint(skel);
+            		  }
+            	 }
+            	 cout << "Found head and tail" << endl;
+            	 eel.push_back(cent);
+            	 eel.push_back(head);
+            	 eel.push_back(tail);
+            	 eels[i] = eel;
+            	 cout << "Added to map" << endl;
+            	 cout << "Head " << head.x << "," << head.y << endl;
+            	 eel_points.at<Vec3b>(head.y,head.x) = Vec3b(0,0,255);
+            	 cout << "Going once" << endl;
+            	 eel_points.at<Vec3b>(tail.y,tail.x) = Vec3b(0,255,0);
+            	 eel_points.at<Vec3b>(cent.y,cent.x) = Vec3b(255,0,0);
+            	 cout << "End of eel loop" << endl;
+
+            }
+
 
 
             // ******* COMBINE FLOOD FILL OUTPUT AND STICKY OUTPUT HERE
             // !!! AND uncomment to display the result!
+
+/*
+            myFindContours(ffoutput,flooded_contours);
+
+            if (!flooded_sticky_prev.empty() ) {
+                   make_sticky(flooded_sticky_prev, flooded_contours, flooded_sticky);
+                }
+                else {
+                   flooded_sticky_prev=flooded_contours;
+                }
+             flooded_sticky_prev = flooded_sticky;
+             colorize(flooded_sticky, flooded_colorized);
+*/
+
 
 
             // *******************************************
@@ -279,7 +426,8 @@ int main(int argc, char** argv)
             buffer.copyTo(display(Rect(0, 0, buffer.cols, buffer.rows)));
 
             // copy final segmentation to output frame
-            buffer = colorized;
+            buffer = colorized + eel_points;
+
             buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
 
             // show output frame
