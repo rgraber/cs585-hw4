@@ -205,7 +205,7 @@ int main(int argc, char** argv)
         // create grayscale image
 		cvtColor(orig, grey, CV_BGR2GRAY);
 		blur(grey, buffer, Size(3,3));
-		grey = buffer;
+		grey = buffer.clone();
 
         if ( !mergedhist.empty() ) {
             // *******************************************
@@ -230,12 +230,12 @@ int main(int argc, char** argv)
                 grey.copyTo(known_still, (sticky_prev > 1));
                 known_still = ((known_still - known_still_prev) > 5);
             }
-
-            // *******************************************
-            // *** Associate the same segments across frames ***
             imshow("dbg",known_still);
             cout << output.type() << ',' << motion.type() << ',' << known_still.type() << '\n';
             buffer = output+motion+known_still;
+
+            // *******************************************
+            // *** Associate the same segments across frames ***
             myFindContours(buffer, segmented);
 
             if ( !sticky_prev.empty() ) {
@@ -279,7 +279,8 @@ int main(int argc, char** argv)
             buffer.copyTo(display(Rect(0, 0, buffer.cols, buffer.rows)));
 
             // copy final segmentation to output frame
-            //buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
+            buffer = colorized;
+            buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
 
             // show output frame
             imshow("Output", display);
