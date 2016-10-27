@@ -59,7 +59,32 @@ width="119" height="120"></a>
 
 <hr>
 <h2> Method and Implementation </h2>
-<p>Give a concise description of the implemented method. For example, you might describe the motivation of current idea, the algorithmic steps or any formulation used in current method.
+<p>Our methodology was as follows:
+  <ol>
+    <li>Create a background mask by locating the two tanks and removing everything else
+    <ul>Relevant Functions:
+      <li>createMatchedMask(imgFile, templateFile, mask)</li>
+      </ul></li>
+    <li>Create a history mask by taking the pixel-by-pixel mean intensity for the previous ten frames
+    <li>OTHER THINGS I DON'T REALLY UNDERSTAND</li>
+    <li>Taking the skeleton of each segment
+      <ul>Relevant Functions:
+	<li>skeletonize(src,dest,obj_id)</li>
+      </ul>
+    </li>
+    <li>For each identified segment, calculating the angle of orientation to determine the probable direction of motion</i>
+<li>Using the orientation to determine the "front" and "back" of the skeleton and marking the relevant pixels as head and tail
+  <ul>Relevant Functions:
+    <li>orientation(object)</li>
+    </ul>
+    </li>
+<li>Add frame to history mask
+  <ul>Relevant Functions:
+    <li>mergeHistory(history,dst)</li>
+  </ul>
+  </li>
+</ol>
+
 </p>
 
 <p>
