@@ -73,8 +73,7 @@ width="119" height="120"></a>
 	<li>skeletonize(src,dest,obj_id)</li>
       </ul>
     </li>
-    <li>For each identified segment, calculating the angle of orientation to determine the probable direction of motion</i>
-<li>Using the orientation to determine the "front" and "back" of the skeleton and marking the relevant pixels as head and tail
+    <li>For each identified segment, calculating the angle of orientation to determine the probable direction of motion and using the orientation to determine the "front" and "back" of the skeleton and marking the relevant pixels as head and tail. If the angle of orientation was between pi/4 and 3pi/4, the eel was determined to be moving up or down (as opposed to left/right). In order to determine the probable direction of motion, the centroid of the skeleton was compared with the previous centroid. If the object was perceived to be moving up, the highest point on the skeleton was identified as the head, and the lowest was identified as the tail. The head,tail, and centroid were then recorded for future comparison.
   <ul>Relevant Functions:
     <li>orientation(object)</li>
     </ul>
