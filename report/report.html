@@ -55,7 +55,8 @@ width="119" height="120"></a>
   This assignment assumes the input is taken from the same eel/crab tank as was provided in the assignment. Our segmenting method relies heavily on the known setup of the room/tank (white walls, 2 tanks side by side, water line about halfway up the tank, etc.). Moreover, it assumes the background remains relatively constant so the animals are the only things consistently moving. 
 </p>
 <p>
-  Among the many difficulties of this project was tracking two animals with very different styles of movement.
+  Among the many difficulties of this project was tracking two animals with very different styles of movement. The crabs generally moved very slowly, even staying completely still for extended periods of time. The eels, however, moved very rapidly throughout the scene, often resulting in huge differences in brightness across their bodies as the light hit different parts of their bodies at different angles. We also ran into several difficulties when people came into the room and adjusted the light, creating the illusion of motion in the image.
+  </p>
 
 <hr>
 <h2> Method and Implementation </h2>
@@ -90,7 +91,7 @@ width="119" height="120"></a>
 
 <hr>
 <h2>Experiments</h2>
-<p>We tried several methods to improve object tracking before settling on the implementation described above. We began by using opencv's backgroundSubtraction() method, but the results were very noisy and difficult to process. 
+<p>We tried several methods to improve object tracking before settling on the implementation described above. We began by using opencv's background subtraction method, but the results were very noisy and difficult to process. Even mixing the results of opencv's method with some basic thresholding failed to produce clean segmentation. Another experiment we tried was using flood fill after we had found an initial segment to fill it out and get more of the eel. However, the close similarity between the eels and the white background meant the flood filling expanded the segments too much. 
 
 </p>
 <p>
