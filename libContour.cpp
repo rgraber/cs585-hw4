@@ -408,6 +408,16 @@ void make_sticky(Mat& prev,Mat& curr,Mat& out)
 	Mat _out = Mat::zeros(out.size(),CV_32S);
 	consolidate_nearby(out,_out);	
 	out=_out;
+	double mymin,mymax;	
+	minMaxLoc(out,&mymin,&mymax,0,0,noArray());
+	for(int i=(int)mymin;i<(int)mymax;i++)
+	{
+		if (countNonZero(out==i) < 50) 
+		{
+			out.setTo(0,out==i);
+		}
+	}
+
 	return;
 /*
 	for(auto it = combo.begin<uchar>(); it != combo.end<uchar>(); ++it)
