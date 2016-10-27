@@ -1,0 +1,159 @@
+
+<html>
+<head>
+<title> CS585: HW4 Segmentation and Tracking, Eels and Crabs</title>
+<style>
+<!--
+body{
+font-family: 'Trebuchet MS', Verdana;
+}
+p{
+font-family: 'Trebuchet MS', Times;
+margin: 10px 10px 15px 20px;
+}
+h3{
+margin: 5px;
+}
+h2{
+margin: 10px;
+}
+h1{
+margin: 10px 0px 0px 20px;
+}
+div.main-body{
+align:center;
+margin: 30px;
+}
+hr{
+margin:20px 0px 20px 0px;
+}
+-->
+</style>
+</head>
+
+<body>
+<center>
+<a href="http://www.bu.edu"><img border="0" src="http://www.cs.bu.edu/fac/betke/images/bu-logo.gif"
+width="119" height="120"></a>
+</center>
+
+<h1>Segmentation and Object Shape Analysis</h1>
+<p>
+ CS 585 HW 4 <br>
+ Megan Van Welie <br>
+ Partners: Rebecca Graber & Danny Cooper <br>
+ Date: October 26, 2016
+</p>
+
+<div class="main-body">
+<hr>
+<h2> Problem Definition </h2>
+<p>
+The primary goal of this assignment was to design and implement algorithms that can track and segment moving objects in video. We were given a video of two tanks with eels and hermit crabs moving in them.
+</p>
+<!--Give a concise description of current problem. For instance, what
+needs to be solved and why it is useful?  Do you make any assumptions?
+What are the difficulties? -->
+
+<hr>
+<h2> Method and Implementation </h2>
+<p>
+The first step in our methodology was to isolate the upper portion of the two tanks containing the crabs and eels. We choose to accomplish this using template matching. We created our template by taking a single frame from the dataset and manually isolating the upper tank region.
+ </p>
+
+<p>
+Once our region of interest was isolated, we then began segmentation by detecting motion. To detect motion, we used a combined method of background subtraction. First, we created a historical merged background by finding the median pixel across the previous N frames, and subtracted the result from the current frame. We experimented with different values of N, but settled upon a relatively low value of N=10, which emperically provided the best results. We combined this output with the subtraction of the immediately previous frame from the current frame. This was done in an attempt to expand the regions surrounding the eel to provide a larger, non-disjointed region on which to base localized thresholding and flood filling.
+ </p>
+
+<p>
+ Next, we attempted to group the remaining disjointed regions which belong to the same object. This proved to be a hard problem. Though we were made some headway by associating segments based on distance measurements, our results were not complete. Therefore, we recommend this as an area needing future research.
+ </p>
+
+<p>
+ The other primary challenge of our methodology was associating the same objects across frames. This, along with the association of objects that were close-enough, is a difficult problem. We attempted a series of methods described in class, including implementing a custom distance metric, which included in its calculation a true spatial distance and intensity difference. However, we went with an overlapping-within-a-sparse-matrix evaluation instead, which provided better results in our testing.
+ </p>
+
+<p>
+ Assuming ideal segmentation output, we also went ahead with attempting to identify the different regions of the eels to help with consistent tracking. The crabs were a simpler problem as they could be tracked with centroids alone. To identify the head and tail regions of the eels we developed a flood fill to vector algorithm. This worked by identifying a single pixel on the border of a given object, and proceeded by drawing a dividing line and flood-filling the separated regions. The vectorized representation was then created by saving the centroid of each iteration of the flood fill.
+ </p>
+
+ <p>
+ Additionally, we implemented skeletonization based on the algorithm described in class. This algorithm calculates the distance of each pixel in the object to the nearest background pixel. A pixel in the object is then considered part of the skeleton if it is at least as far from the background as all of its N4 neighbors. We believe that this has great potential for characterizing the movement of the eels as it provides a vector representation of their center lines.
+ </p>
+
+<p>
+ Though our association across frames works well with ideal data, due to the disjointed nature of this dataset, there was too much noise to truly track the same eel or crab across frames. We therefore settled for a simple activity detection metric our as our final output data point.
+ </p>
+
+
+<!--Give a concise description of the implemented method. For example, you might describe the motivation of current idea, the algorithmic steps or any formulation used in current method.-->
+<!--Briefly outline the functions you created in your code to carry out your algorithmic steps described above.-->
+
+<!--
+<hr>
+<h2>Experiments</h2>
+Describe your experiments, including the number of tests that you
+performed, and the relevant parameter values.
+Define your evaluation metrics, e.g., detection rates, accuracy, running time.
+-->
+
+<hr>
+<h2> Results</h2>
+<!--List your experimental results.  Provide examples of input images and output images. If relevant, you may provide images showing any intermediate steps -->
+<!--
+<p> <b> Bats </b> </p>
+
+<figure>
+<img src="imgs/bats_percentile_1.png" alt="Percentile 0.20" style="width:250;height:250;">
+<img src="imgs/bats_percentile_2.png" alt="Percentile 0.05" style="width:250;height:250;">
+<img src="imgs/bats_percentile_3.png" alt="Percentile 0.005" style="width:250;height:250;">
+<img src="imgs/bats_linear_adaptive_percentile.png" alt="Linear Adaptive Percentile [0.20 - 0.005]" style="width:250;height:250;">
+<figcaption>Static and adaptive percentile method. From left to right: [0.20, 0.05, 0.005, vertical linear adaptive ranging from 0.20 to 0.005]</figcaption>
+</figure>
+-->
+
+<hr>
+<h2> Discussion </h2>
+<!--
+Discuss your method and results:
+<ul>
+<li>What are the strengths and weaknesses of your method? </li>
+<li>Do your results show that your method is generally successful or
+     are there limitations? Describe what you expected to find in your
+     experiments, and how that differed or was confirmed by your
+     results. </li>
+<li>Potential future work. How could your method be improved?   What
+would you try (if you had more time) to overcome the
+failures/limitations of your work?</li>
+</ul>
+-->
+
+<hr>
+<h2> Conclusions </h2>
+
+<p>
+Our main message from this assignment is that segmentation is a difficult problem that greatly varies in its challenges across different datasets.
+</p>
+<!-- Based on your discussion, what are your conclusions?  What is your main message? -->
+
+<hr>
+<h2> Credits and Bibliography </h2>
+<!-- Credit any joint work or discussions with your classmates. -->
+<p>
+
+</p>
+<p>
+OpenCV Documentation<br>
+</p>
+<!-- Cite any papers or other references you consulted while developing
+your solution.  Citations to papers should include the authors, the
+year of publication, the title of the work, and the publication
+information (e.g., book name and publisher; conference proceedings and
+location; journal name, volume and pages; technical report and
+institution).  Material on the web should include the url and date of
+access.  -->
+
+
+</div>
+</body>
+</html>
