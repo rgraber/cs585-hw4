@@ -148,6 +148,7 @@ void mergeHistory(vector<Mat> history, Mat& dst) {
 
 vector<string> filesInFolder(string& dirpath)
 {
+	dirpath.append("*");
 	glob_t glob_result;
 	glob( dirpath.c_str(), GLOB_TILDE, NULL, &glob_result );
 	vector<string> files;
@@ -229,7 +230,7 @@ int main(int argc, char** argv)
 	Ptr<BackgroundSubtractor> pMOG2; //MOG2 Background subtractor
 
 	pMOG2 = new BackgroundSubtractorMOG2(100,10,false);
-	string dirpath = "/Users/rebeccagraber/Documents/IVC/HW4/eelB/*";
+	string dirpath = argv[1];//"/Users/rebeccagraber/Documents/IVC/HW4/eelB/*";
 	vector<string> img_files = filesInFolder(dirpath);
 
 	if ( img_files.size() == 0 ) {
@@ -238,7 +239,7 @@ int main(int argc, char** argv)
 	}
 
     Mat tank_mask;
-    createMatchedMask(img_files[0], "/Users/rebeccagraber/Documents/IVC/HW4/data/background_template.png",
+    createMatchedMask(img_files[0], argv[2],
                         tank_mask);
     if ( tank_mask.empty() ) {
         cout << "ERROR: Failed to create tank mask" << endl;
@@ -303,7 +304,7 @@ int main(int argc, char** argv)
             }
             imshow("dbg",known_still);
             cout << output.type() << ',' << motion.type() << ',' << known_still.type() << '\n';
-            buffer = output+motion+known_still;
+            buffer = output+motion;//+known_still;
 
             // *******************************************
             // *** Associate the same segments across frames ***
@@ -353,6 +354,8 @@ int main(int argc, char** argv)
             	vector<Point> eel;
             	Point cent = centroid(skel);
             	cout << "Found centroid " << endl;
+		if (cent.x < 0 || cent.y < 0)
+			continue;
             	Point old_cent = cent;
             	Point head;
             	Point tail;
