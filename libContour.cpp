@@ -77,7 +77,7 @@ vector<State> populate_states(Mat& frame)
 		}
 		Moments m = moments(tmp,true);
 		cout << 'a'<< sum(tmp)[0] << '\n';
-		if (sum(tmp)[0] < (255 * 10))
+		if (countNonZero(tmp) < (15))
 		{
 			continue;
 		}
@@ -85,7 +85,7 @@ vector<State> populate_states(Mat& frame)
 		s.centroid=centroid;
 		s.object_id = i;
 		s.pixels = frame==i;
-		s.area = m.m00;
+		s.area = countNonZero(s.pixels);
 		cout << "s:" << i <<',' <<centroid<<'\n';
 		states.push_back(s);
 	}
@@ -93,8 +93,7 @@ vector<State> populate_states(Mat& frame)
 
 }
 
-
-double df(State& s1, State& s2)
+double df2(State& s1, State& s2)
 {
 
 	Point2d difference = (s1.centroid - s2.centroid);
@@ -104,7 +103,44 @@ double df(State& s1, State& s2)
 	{
 		return 1.0;
 	}
-	int intersect_area = moments((s1.pixels > 0 ) & (s2.pixels > 0)).m00;
+	int intersect_area = countNonZero((s1.pixels > 0 ) & (s2.pixels > 0));
+	double s1_area_ratio; 
+	double s2_area_ratio;
+	if (intersect_area >0){	
+		s1_area_ratio=(s1.area / intersect_area);
+		s2_area_ratio=(s2.area / intersect_area);
+	}
+	else
+	{
+		s1_area_ratio=0;
+		s2_area_ratio=0;
+	}
+	double ratio=0; // Value between 0 and 1.0
+	if (s1_area_ratio > s2_area_ratio)
+	{
+		ratio=s1_area_ratio;
+	}
+	else
+	{
+		ratio=s2_area_ratio;
+	}
+	cout << "nondefault," << ratio << '\n';
+	return (1.0-ratio);
+
+
+
+}
+double df(State& s1, State& s2)
+{
+
+	Point2d difference = (s1.centroid - s2.centroid);
+	double distance = sqrt(difference.x*difference.x + difference.y*difference.y);
+	//return distance;
+	if (distance > 50)
+	{
+		return 1.0;
+	}
+	int intersect_area = countNonZero((s1.pixels > 0 ) & (s2.pixels > 0));
 	double s1_area_ratio; 
 	double s2_area_ratio;
 	if (intersect_area >0){	
@@ -199,14 +235,17 @@ bool mergenew(vector <vector <int> >& input, vector <vector <int> >& output , in
 void consolidate_nearby(Mat& in, Mat& out)
 {
 	vector<State> states = populate_states(in);
-	vector<tuple<State,State> > corrs = get_state_matches(states,states,&df,25.0);
+	vector<tuple<State,State> > corrs = get_state_matches(states,states,&df2,75.0);
 	State a_s, b_s;
 	vector<vector<int> > combineme, equivs;
 	
 	double mymin,mymax;
 	minMaxLoc(in,&mymin,&mymax,0,0,noArray());
-
-
+	vector<State> quicklookup = vector<State>((int)mymax);
+	for (int i=0; i<states.size();i++)
+	{
+		quicklookup[states[i].object_id] = states[i];
+	}
 	for (int i=0; i<corrs.size(); i++)
 	{	
 		vector<int> v;
@@ -222,10 +261,19 @@ void consolidate_nearby(Mat& in, Mat& out)
 	mergenew(combineme,equivs,(int)mymax);
 	for (int i=0;i<equivs.size();i++)
 	{
+		int max=0;
+		int max_id=0;
 		for (int j = 0;j<equivs[i].size();j++)
 		{
 			out.setTo((1+i),in==equivs[i][j]);
+			int area = quicklookup[equivs[i][j]].area;
+			if (area > max)
+			{
+				max=area;
+				max_id = quicklookup[equivs[i][j]].object_id;
+			}
 		}
+		out.setTo(max_id,out==(1+i));
 	}
 
 }
@@ -315,6 +363,7 @@ void make_sticky(Mat& prev,Mat& curr,Mat& out)
 
 	vector<int> seen = vector<int>(realmax,-1); //Maps values in prev frame onto current frame values
 	
+	
 	// Handles direct correspondences
 	Mat outd;
 	out.copyTo(outd);
@@ -359,6 +408,16 @@ void make_sticky(Mat& prev,Mat& curr,Mat& out)
 	Mat _out = Mat::zeros(out.size(),CV_32S);
 	consolidate_nearby(out,_out);	
 	out=_out;
+	double mymin,mymax;	
+	minMaxLoc(out,&mymin,&mymax,0,0,noArray());
+	for(int i=(int)mymin;i<(int)mymax;i++)
+	{
+		if (countNonZero(out==i) < 50) 
+		{
+			out.setTo(0,out==i);
+		}
+	}
+
 	return;
 /*
 	for(auto it = combo.begin<uchar>(); it != combo.end<uchar>(); ++it)
