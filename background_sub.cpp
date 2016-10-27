@@ -28,209 +28,28 @@
 #include <map>
 #include <glob.h>
 
+#include "utils.hpp"
 #include "libContour.hpp"
 #include "floodfill.hpp"
 #include "segmentation.hpp"
 using namespace cv;
 using namespace std;
 
-Point getLowestPoint(Vector<Point> in)
-{
-	Point p = Point(0,0);
-	bool first;
-	for(int i=0; i < in.size(); i++)
-	{
-//		cout << "P: " << in[i].x << "," << in[i].y;
-		if (first || in[i].y > p.y )
-		{
-			p = in[i];
-			first = false;
-		}
-	}
-	return p;
-}
-
-Point getLeftMostPoint(Vector<Point> in)
-{
-	Point p = Point(0,0);
-		bool first;
-		for(int i=0; i < in.size(); i++)
-		{
-//			cout << "P: " << in[i].x << "," << in[i].y;
-			if (first || in[i].x < p.x )
-			{
-				p = in[i];
-				first = false;
-			}
-		}
-		return p;
-}
-
-
-Point getHighestPoint(Vector<Point> in)
-{
-	Point p = Point(0,0);
-	bool first;
-	for(int i=0; i < in.size(); i++)
-	{
-//		cout << "P: " << in[i].x << "," << in[i].y;
-		if (first || in[i].y < p.y )
-		{
-			p = in[i];
-			first = false;
-		}
-	}
-	return p;
-}
-
-Point getRightMostPoint(Vector<Point> in)
-{
-	Point p = Point(0,0);
-		bool first;
-		for(int i=0; i < in.size(); i++)
-		{
-//			cout << "P: " << in[i].x << "," << in[i].y;
-			if (first || in[i].x > p.x )
-			{
-				p = in[i];
-				first = false;
-			}
-		}
-		return p;
-}
-
-
-Rect rectFromMask(Mat& mask) {
-    int l = -1;
-    int r = -1;
-    int t = -1;
-    int b = -1;
-    int row, col;
-    for ( row = 0; row < mask.rows; ++row ) {
-        for ( col = 0; col < mask.cols; ++col ) {
-            if (mask.at<uchar>(row, col) == 255) {
-                if ( l == -1 ) { l = col; }
-                if ( col > r ) { r = col; }
-                if ( t == -1 ) { t = row; }
-                if ( row > b ) { b = row; }
-            }
-        }
-    }
-    int w = r - l;
-    int h = b - t;
-    Rect roi(l, t, w, h);
-    return roi;
-}
-
-void mergeHistory(vector<Mat> history, Mat& dst) {
-    int rows = history[0].rows;
-    int cols = history[0].cols;
-    vector<uchar> merging;
-    int i, row, col;
-    for ( row = 0; row < rows; ++row ) {
-        for ( col = 0; col < cols; ++col ) {
-            merging.clear();
-            for ( i = 0; i < history.size(); ++i ) {
-                merging.push_back(history[i].at<uchar>(row, col));
-            }
-            // take the median intensity across all history frames for
-            // this single pixel
-            size_t n = merging.size() / 2;
-            nth_element(merging.begin(), merging.begin()+n, merging.end());
-            int median = merging[n];
-            dst.at<uchar>(row, col) = median;
-
-            // alternatively, take the mean
-            //double avg = mean(merging)[0];
-        }
-    }
-}
-
-vector<string> filesInFolder(string& dirpath)
-{
-	dirpath.append("*");
-	glob_t glob_result;
-	glob( dirpath.c_str(), GLOB_TILDE, NULL, &glob_result );
-	vector<string> files;
-	for ( int i = 0; i < glob_result.gl_pathc; ++i ) {
-		files.push_back(string(glob_result.gl_pathv[i]));
-	}
-	globfree(&glob_result);
-	return files;
-}
-
-string type2str(int type) {
-  string r;
-
-  uchar depth = type & CV_MAT_DEPTH_MASK;
-  uchar chans = 1 + (type >> CV_CN_SHIFT);
-
-  switch ( depth ) {
-    case CV_8U:  r = "8U"; break;
-    case CV_8S:  r = "8S"; break;
-    case CV_16U: r = "16U"; break;
-    case CV_16S: r = "16S"; break;
-    case CV_32S: r = "32S"; break;
-    case CV_32F: r = "32F"; break;
-    case CV_64F: r = "64F"; break;
-    default:     r = "User"; break;
-  }
-
-  r += "C";
-  r += (chans+'0');
-
-  return r;
-}
-
-// Create a mask of an area identified as matching the input template
-void createMatchedMask(string img_file, string template_file, Mat& mask) {
-    // load first image to template match
-    Mat img = imread(img_file, IMREAD_GRAYSCALE);
-    if ( !img.data ) {
-        cout << "Could not open file " << img_file << endl;
-        return;
-    }
-    Mat templ = imread(template_file, IMREAD_GRAYSCALE);
-    if ( !templ.data ) {
-        cout << "Could not open file " << template_file << endl;
-        return;
-    }
-
-    int match_method = CV_TM_SQDIFF_NORMED;
-    int result_cols = img.cols - templ.cols + 1;
-    int result_rows = img.rows - templ.rows + 1;
-
-    Mat result;
-    result.create( result_rows, result_cols, CV_32FC1 );
-    matchTemplate( img, templ, result, match_method );
-    normalize( result, result, 0, 1, NORM_MINMAX, -1, Mat() );
-
-	/// Localizing the best match with minMaxLoc
-	double minVal; double maxVal; Point minLoc; Point maxLoc;
-	Point matchLoc;
-
-	minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, Mat() );
-
-	if( match_method  == CV_TM_SQDIFF ||
-            match_method == CV_TM_SQDIFF_NORMED ){
-		matchLoc = minLoc;
-    } else {
-        matchLoc = maxLoc;
-    }
-
-    mask = Mat::zeros(img.size(), img.type());
-    rectangle( mask, matchLoc,
-            Point( matchLoc.x + templ.cols , matchLoc.y + templ.rows ),
-            Scalar::all(255), -1);
-}
 
 int main(int argc, char** argv)
 {
+    // **************************************
+    // Open activity record file for recording data to CSV
+    ofstream analysis_record;
+    analysis_record.open("analysis_record.csv");
+    ofstream activity_record;
+    activity_record.open("activity_record.csv");
+    // ***************************************
+    bool activity_found = false;
+    int last_activity_found = -1;
+    int start_of_activity = -1;
 
-	Ptr<BackgroundSubtractor> pMOG2; //MOG2 Background subtractor
-
-	pMOG2 = new BackgroundSubtractorMOG2(100,10,false);
-	string dirpath = argv[1];//"/Users/rebeccagraber/Documents/IVC/HW4/eelB/*";
+	string dirpath = "data/eels2/*";
 	vector<string> img_files = filesInFolder(dirpath);
 
 	if ( img_files.size() == 0 ) {
@@ -239,8 +58,7 @@ int main(int argc, char** argv)
 	}
 
     Mat tank_mask;
-    createMatchedMask(img_files[0], argv[2],
-                        tank_mask);
+    createMatchedMask(img_files[0], argv[2], tank_mask);
     if ( tank_mask.empty() ) {
         cout << "ERROR: Failed to create tank mask" << endl;
         return -1;
@@ -328,9 +146,9 @@ int main(int argc, char** argv)
 
         /*    // flood fill each segment to expand to full body of eel
             ffbuffer = Mat::zeros(sticky.size(), CV_32S);
-            for ( int i = 1; i < nmax; i++) {
-                cout << "Obj_id: " << i << endl;
-                floodFillFromSegment(grey, sticky, i, ffbuffer);
+            for ( int j = 1; j < nmax; j++) {
+                cout << "Obj_id: " << j << endl;
+                floodFillFromSegment(grey, sticky, j, ffbuffer);
             }
             ffbuffer.convertTo(ffoutput, CV_8UC1);
             threshold(ffoutput, ffoutput, 1, 255, 0);*/
@@ -411,7 +229,6 @@ cout << "eel_points" << endl;
             }
 
 
-
             // ******* COMBINE FLOOD FILL OUTPUT AND STICKY OUTPUT HERE
             // !!! AND uncomment to display the result!
 
@@ -444,6 +261,16 @@ cout << "eel_points" << endl;
 
             buffer.copyTo(display(Rect(0, buffer.rows, buffer.cols, buffer.rows)));
 
+            // *** determine if activity was found ***
+            if ( sum(buffer)[0] > 0 ) {
+                cout << sum(buffer) << endl;
+                last_activity_found = i;
+                if ( !activity_found ) {
+                    start_of_activity = i;
+                    activity_found = true;
+                }
+            }
+
             // show output frame
             imshow("Output", display);
 
@@ -467,7 +294,36 @@ cout << "eel_points" << endl;
             mergeHistory(history, mergedhist);
         }
 
+        // record start/end of activity period if applicable
+        if ( activity_found && ( i - last_activity_found ) > 10 ) {
+            activity_record << frameNumberToTime(start_of_activity);
+            activity_record << " to ";
+            activity_record << frameNumberToTime(last_activity_found);
+            activity_record << "\n";
+
+            activity_found = false;
+        }
+
+        // save activity data to a file
+        analysis_record << to_string(i) << ", ";
+        analysis_record << frameNumberToTime(i);// << ",";
+        analysis_record << "\n";
 	}
+
+    // final write out
+    if ( activity_found ) {
+        activity_record << frameNumberToTime(start_of_activity);
+        activity_record << " to ";
+        activity_record << frameNumberToTime(last_activity_found);
+        activity_record << "\n";
+
+        activity_found = false;
+    }
+
+    // close output file
+    activity_record.close();
+    analysis_record.close();
+
 	waitKey(0);
     return 0;
 }
